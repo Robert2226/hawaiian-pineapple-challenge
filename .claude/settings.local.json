@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Phase 1: playable core — canvas loop, spawn/fall, aim+shoot, collision, score, lives, game-over/restart *)",
+      "Bash(git push *)"
+    ]
+  }
+}

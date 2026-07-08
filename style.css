@@ -1,10 +1,7 @@
 :root {
-  --sky-top: #ff9a56;
-  --sky-bottom: #ffcf87;
+  --sky-top: #ff8b52;
+  --sky-mid: #ffcf87;
   --sea: #1a9dc4;
-  --sand: #f4e0a1;
-  --ink: #3a2410;
-  --accent: #ffd93b;
 }
 
 * {
@@ -16,31 +13,35 @@
 html,
 body {
   height: 100%;
+  overflow: hidden;
 }
 
 body {
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-  color: var(--ink);
-  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 55%, var(--sea) 100%);
+  background: #10202b;
   display: flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  padding: 1.5rem;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  touch-action: none;
 }
 
-.placeholder h1 {
-  font-size: clamp(1.6rem, 6vw, 3rem);
-  text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.5);
-  margin-bottom: 1rem;
+#game-wrap {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.placeholder p {
-  font-size: clamp(1rem, 3vw, 1.4rem);
-  margin: 0.35rem 0;
-}
-
-.placeholder .hint {
-  color: #6b3d13;
-  font-style: italic;
+/* Canvas keeps its 4:3 internal resolution but scales to fit the screen. */
+#game {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, var(--sea) 100%);
+  width: min(100vw, 133.333vh); /* 800/600 aspect */
+  height: min(75vw, 100vh);
+  max-width: 800px;
+  max-height: 600px;
+  display: block;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
 }
