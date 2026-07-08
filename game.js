@@ -76,6 +76,69 @@
     }
   }
 
+  // ---- Audio (Web Audio API — procedural, no files) ----------------------
+  let audioCtx = null;
+  let muted = localStorage.getItem("hpc_muted") === "1";
+
+  // Must be (re)started from a user gesture per browser autoplay rules.
+  function ensureAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  }
+
+  function tone(freq, dur, type, gain, slideTo) {
+    if (muted || !audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g).connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur);
+  }
+
+  function noiseBurst(dur, gain) {
+    if (muted || !audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const n = Math.floor(audioCtx.sampleRate * dur);
+    const buf = audioCtx.createBuffer(1, n, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const filt = audioCtx.createBiquadFilter();
+    filt.type = "lowpass";
+    filt.frequency.value = 1400;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(filt).connect(g).connect(audioCtx.destination);
+    src.start(t0);
+    src.stop(t0 + dur);
+  }
+
+  const sfx = {
+    shoot() { tone(430, 0.12, "square", 0.10, 190); },
+    hit() { noiseBurst(0.18, 0.28); tone(680, 0.12, "triangle", 0.10, 990); },
+    miss() { tone(300, 0.4, "sawtooth", 0.18, 90); },
+    start() { tone(523, 0.1, "sine", 0.14); setTimeout(() => tone(784, 0.16, "sine", 0.14), 110); },
+    over() { tone(392, 0.25, "sine", 0.16, 180); setTimeout(() => tone(262, 0.4, "sine", 0.16, 120), 180); },
+  };
+
+  // On-canvas mute button (game-space rect).
+  const muteRect = { x: 174, y: 12, w: 42, h: 38 };
+  function toggleMute() {
+    muted = !muted;
+    localStorage.setItem("hpc_muted", muted ? "1" : "0");
+  }
+
   function reset() {
     pineapples = [];
     coconuts = [];
@@ -128,6 +191,7 @@
   function fire() {
     if (fireTimer > 0) return;
     fireTimer = FIRE_COOLDOWN;
+    sfx.shoot();
     const bx = cannon.x + Math.cos(cannon.aim) * cannon.barrel;
     const by = cannon.y + Math.sin(cannon.aim) * cannon.barrel;
     coconuts.push({
@@ -169,6 +233,7 @@
     if (state === STATE.START) {
       state = STATE.PLAYING;
       reset();
+      sfx.start();
       return;
     }
     if (state === STATE.GAMEOVER) {
@@ -189,6 +254,16 @@
 
   canvas.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    ensureAudio();
+    // Mute button takes priority and must not start/fire the game.
+    const gp = toGameCoords(e.clientX, e.clientY);
+    if (
+      gp.x >= muteRect.x && gp.x <= muteRect.x + muteRect.w &&
+      gp.y >= muteRect.y && gp.y <= muteRect.y + muteRect.h
+    ) {
+      toggleMute();
+      return;
+    }
     handlePress(e.clientX, e.clientY);
   });
 
@@ -203,8 +278,14 @@
     if (e.code === "Space") firing = false;
   });
   window.addEventListener("keydown", (e) => {
+    if (e.code === "KeyM") {
+      ensureAudio();
+      toggleMute();
+      return;
+    }
     if (e.code === "Space" || e.code === "Enter") {
       e.preventDefault();
+      ensureAudio();
       if (state === STATE.PLAYING) { firing = true; fire(); }
       else handlePress(cannon.x, 0);
     }
@@ -264,6 +345,7 @@
           score += 10;
           burst(p.x, p.y, "#ffd93b");
           addShake(3);
+          sfx.hit();
           break;
         }
       }
@@ -276,9 +358,11 @@
         lives -= 1;
         burst(p.x, GROUND_Y, "#c0392b");
         addShake(11);
+        sfx.miss();
         if (lives <= 0) {
           lives = 0;
           state = STATE.GAMEOVER;
+          sfx.over();
         }
       }
     }
@@ -684,8 +768,18 @@
     ctx.textBaseline = "middle";
     ctx.fillText("🍍 " + score, 26, 32);
 
+    // mute button (just right of the score plaque)
+    ctx.fillStyle = "rgba(61,38,15,0.4)";
+    roundRectPath(muteRect.x, muteRect.y, muteRect.w, muteRect.h, 10);
+    ctx.fill();
+    ctx.textAlign = "center";
+    ctx.font = "20px 'Trebuchet MS', sans-serif";
+    ctx.fillText(muted ? "🔇" : "🔊", muteRect.x + muteRect.w / 2, muteRect.y + muteRect.h / 2 + 1);
+    ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
+
     // lives (top-right)
     ctx.textAlign = "right";
+    ctx.fillStyle = "#fff8e6";
     ctx.fillText("❤️".repeat(lives), W - 18, 32);
     ctx.textBaseline = "alphabetic";
   }
@@ -744,6 +838,8 @@
     get lives() { return lives; },
     get pineapples() { return pineapples.length; },
     get coconuts() { return coconuts.length; },
+    get muted() { return muted; },
+    toggleMute() { toggleMute(); },
     forceStart() { state = STATE.PLAYING; reset(); },
   };
 
