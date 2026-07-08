@@ -19,8 +19,10 @@
   const PINEAPPLE_R = 22;
   const COCONUT_R = 8;
   const COCONUT_SPEED = 620;    // px/s
-  const FIRE_COOLDOWN = 0.22;   // seconds between shots
+  const FIRE_COOLDOWN = 0.16;   // seconds between shots (hold to auto-fire)
   const START_LIVES = 3;
+  const AIM_EASE = 18;          // higher = snappier barrel tracking
+  const AIM_MIN_UP = 0.18;      // radians below horizon the barrel refuses to dip
 
   // Palm tree x-positions (spawn points) across the top.
   const PALMS = [W * 0.15, W * 0.38, W * 0.62, W * 0.85];
@@ -37,11 +39,12 @@
   let spawnTimer = 0;
   let fireTimer = 0;
 
-  // Cannon lives at bottom-center; barrel aims at the pointer.
-  const cannon = { x: W / 2, y: GROUND_Y, aim: -Math.PI / 2, barrel: 46 };
+  // Cannon lives at bottom-center; barrel eases toward targetAim.
+  const cannon = { x: W / 2, y: GROUND_Y, aim: -Math.PI / 2, targetAim: -Math.PI / 2, barrel: 46 };
 
-  // Pointer position in game space.
-  const pointer = { x: W / 2, y: H / 2 };
+  // Pointer position in game space, and whether the trigger is held.
+  const pointer = { x: W / 2, y: H / 2, active: false };
+  let firing = false;
 
   // ---- Helpers -----------------------------------------------------------
   const rand = (min, max) => min + Math.random() * (max - min);
@@ -54,6 +57,23 @@
     lives = START_LIVES;
     spawnTimer = 0;
     fireTimer = 0;
+    firing = false;
+    cannon.aim = -Math.PI / 2;
+    cannon.targetAim = -Math.PI / 2;
+  }
+
+  // Keep the barrel in the upper arc so it never fires into the ground.
+  // Screen y grows downward, so "up" is the range (-PI, 0).
+  function clampAim(a) {
+    const hiR = -AIM_MIN_UP;            // right-most allowed (just above horizon)
+    const hiL = -Math.PI + AIM_MIN_UP;  // left-most allowed (just above horizon)
+    if (a >= 0) {
+      // Pointer is at/below the horizon: snap to the nearer upper limit.
+      return a <= Math.PI / 2 ? hiR : hiL;
+    }
+    if (a > hiR) return hiR;
+    if (a < hiL) return hiL;
+    return a;
   }
 
   // Convert a client (screen) coordinate to internal game coordinates.
@@ -112,7 +132,10 @@
     const p = toGameCoords(clientX, clientY);
     pointer.x = p.x;
     pointer.y = p.y;
-    cannon.aim = Math.atan2(pointer.y - cannon.y, pointer.x - cannon.x);
+    pointer.active = true;
+    cannon.targetAim = clampAim(
+      Math.atan2(pointer.y - cannon.y, pointer.x - cannon.x)
+    );
   }
 
   function handlePress(clientX, clientY) {
@@ -125,8 +148,10 @@
       state = STATE.START;
       return;
     }
-    // PLAYING
+    // PLAYING: aim, snap the barrel there instantly, and start firing.
     aimAt(clientX, clientY);
+    cannon.aim = cannon.targetAim;
+    firing = true;
     fire();
   }
 
@@ -140,11 +165,20 @@
     handlePress(e.clientX, e.clientY);
   });
 
-  // Keyboard: space to shoot, Enter to start/restart.
+  const stopFiring = () => { firing = false; };
+  canvas.addEventListener("pointerup", stopFiring);
+  canvas.addEventListener("pointercancel", stopFiring);
+  canvas.addEventListener("pointerleave", stopFiring);
+  window.addEventListener("blur", stopFiring);
+
+  // Keyboard: space to shoot (hold to auto-fire), Enter to start/restart.
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "Space") firing = false;
+  });
   window.addEventListener("keydown", (e) => {
     if (e.code === "Space" || e.code === "Enter") {
       e.preventDefault();
-      if (state === STATE.PLAYING) fire();
+      if (state === STATE.PLAYING) { firing = true; fire(); }
       else handlePress(cannon.x, 0);
     }
   });
@@ -154,6 +188,13 @@
     if (state !== STATE.PLAYING) return;
 
     fireTimer = Math.max(0, fireTimer - dt);
+
+    // Ease the barrel toward the target aim (framerate-independent).
+    const t = 1 - Math.exp(-AIM_EASE * dt);
+    cannon.aim += (cannon.targetAim - cannon.aim) * t;
+
+    // Auto-fire while the trigger is held.
+    if (firing) fire();
 
     // Spawn
     spawnTimer -= dt;
@@ -301,6 +342,38 @@
     ctx.fill();
   }
 
+  function drawAimGuide() {
+    const bx = cannon.x + Math.cos(cannon.aim) * cannon.barrel;
+    const by = cannon.y + Math.sin(cannon.aim) * cannon.barrel;
+
+    // Dotted trajectory line from the barrel tip along the aim direction.
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 10]);
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx + Math.cos(cannon.aim) * 900, by + Math.sin(cannon.aim) * 900);
+    ctx.stroke();
+    ctx.restore();
+
+    // Crosshair reticle at the pointer.
+    if (pointer.active) {
+      const { x, y } = pointer;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, 12, 0, Math.PI * 2);
+      ctx.moveTo(x - 18, y); ctx.lineTo(x - 6, y);
+      ctx.moveTo(x + 6, y); ctx.lineTo(x + 18, y);
+      ctx.moveTo(x, y - 18); ctx.lineTo(x, y - 6);
+      ctx.moveTo(x, y + 6); ctx.lineTo(x, y + 18);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   function drawParticles() {
     for (const pt of particles) {
       ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
@@ -338,6 +411,7 @@
     for (const p of pineapples) drawPineapple(p);
     for (const c of coconuts) drawCoconut(c);
     drawParticles();
+    if (state === STATE.PLAYING) drawAimGuide();
     drawCannon();
     drawHUD();
 
