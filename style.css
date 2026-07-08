@@ -1,0 +1,46 @@
+:root {
+  --sky-top: #ff9a56;
+  --sky-bottom: #ffcf87;
+  --sea: #1a9dc4;
+  --sand: #f4e0a1;
+  --ink: #3a2410;
+  --accent: #ffd93b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 55%, var(--sea) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.placeholder h1 {
+  font-size: clamp(1.6rem, 6vw, 3rem);
+  text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.5);
+  margin-bottom: 1rem;
+}
+
+.placeholder p {
+  font-size: clamp(1rem, 3vw, 1.4rem);
+  margin: 0.35rem 0;
+}
+
+.placeholder .hint {
+  color: #6b3d13;
+  font-style: italic;
+}

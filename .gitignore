@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# iCloud placeholder files
+.icloud
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
