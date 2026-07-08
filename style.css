@@ -41,7 +41,7 @@ body {
   max-width: 800px;
   max-height: 600px;
   display: block;
-  image-rendering: pixelated;
   cursor: crosshair;
+  border-radius: 6px;
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
 }
