@@ -41,6 +41,29 @@
   let lives = START_LIVES;
   let best = parseInt(localStorage.getItem("hpc_best"), 10) || 0;
   let playerName = (localStorage.getItem("hpc_name") || "").trim();
+
+  // Incoming challenge from a shared "?n=<name>&s=<score>" link, if present.
+  function parseChallengeFrom(search) {
+    try {
+      const params = new URLSearchParams(search);
+      const n = params.get("n");
+      const s = params.get("s");
+      if (n && s) {
+        const sc = parseInt(s, 10);
+        if (!isNaN(sc)) return { name: n.slice(0, 20), score: sc };
+      }
+    } catch (e) { /* malformed link — ignore */ }
+    return null;
+  }
+  let challenge = (typeof location !== "undefined") ? parseChallengeFrom(location.search) : null;
+
+  function challengeResult() {
+    if (!challenge) return "";
+    if (score > challenge.score) return "🎉 You beat " + challenge.name + "!";
+    if (score === challenge.score) return "😮 You tied " + challenge.name + "!";
+    return "So close — " + challenge.name + " got " + challenge.score;
+  }
+
   let combo = 0;
   const comboMult = () => 1 + Math.floor(combo / 3); // x2 at 3 hits, x3 at 6, ...
 
@@ -1002,18 +1025,19 @@
     drawHUD();
     if (state === STATE.PLAYING && betweenWaves) drawWaveBanner();
     if (state === STATE.START) {
-      drawCenterText(
-        "🍍 Hawaiian Pineapple Challenge 🌴",
-        playerName ? "Aloha, " + playerName + "! Click / tap to start" : "Click / tap to start",
-        best > 0 ? "🏆 Best: " + best : ""
-      );
+      const sub = challenge
+        ? "🍍 " + challenge.name + " challenges you to beat " + challenge.score + "!"
+        : (playerName ? "Aloha, " + playerName + "! Click / tap to start" : "Click / tap to start");
+      drawCenterText("🍍 Hawaiian Pineapple Challenge 🌴", sub, best > 0 ? "🏆 Best: " + best : "");
     } else if (state === STATE.GAMEOVER) {
       drawCenterText(
         "Game Over — Score " + score,
         "Click / tap to play again",
-        "🏆 Best: " + best
+        challenge ? challengeResult() : "🏆 Best: " + best
       );
     }
+
+    syncUI();
   }
 
   // ---- Debug hook (harmless; handy for testing) --------------------------
@@ -1031,11 +1055,15 @@
     get toSpawn() { return toSpawn; },
     get betweenWaves() { return betweenWaves; },
     get hazards() { return hazards.length; },
+    get challenge() { return challenge; },
+    parseChallenge(search) { return parseChallengeFrom(search); }, // debug/testing aid
     get muted() { return muted; },
     toggleMute() { toggleMute(); },
     clearBest() { best = 0; localStorage.removeItem("hpc_best"); },
     setCombo(n) { combo = n; },   // debug/testing aid
     setLives(n) { lives = n; },   // debug/testing aid
+    setScore(n) { score = n; },   // debug/testing aid
+    setToSpawn(n) { toSpawn = n; }, // debug/testing aid
     spawnHazardAt(x, y) { spawnHazard(x, y); }, // debug/testing aid
     fire() { fireTimer = 0; fire(); },          // debug/testing aid
     forceStart() { state = STATE.PLAYING; reset(); },
@@ -1066,6 +1094,51 @@
   }
   // Ask for a name on first visit only.
   if (!playerName) showNameModal();
+
+  // ---- Challenge links (game-over sharing) -------------------------------
+  const goUI = document.getElementById("gameover-ui");
+  const challengeBtn = document.getElementById("challenge-btn");
+  const toastEl = document.getElementById("toast");
+  let toastTimer = 0;
+
+  function showToast(msg) {
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.remove("hidden");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.add("hidden"), 2000);
+  }
+
+  function buildChallengeURL() {
+    const nm = playerName || "Player";
+    return location.origin + location.pathname +
+      "?n=" + encodeURIComponent(nm) + "&s=" + score;
+  }
+
+  function shareChallenge() {
+    const url = buildChallengeURL();
+    const text = (playerName || "Player") + " scored " + score +
+      " in Hawaiian Pineapple Challenge — can you beat it? 🍍";
+    if (navigator.share) {
+      navigator.share({ title: "Hawaiian Pineapple Challenge", text, url }).catch(() => {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(
+        () => showToast("Challenge link copied! 🌴"),
+        () => showToast(url)
+      );
+    } else {
+      showToast(url);
+    }
+  }
+  if (challengeBtn) challengeBtn.addEventListener("click", shareChallenge);
+
+  // Show the game-over button only on the game-over screen.
+  let uiState = null;
+  function syncUI() {
+    if (state === uiState) return;
+    uiState = state;
+    if (goUI) goUI.classList.toggle("hidden", state !== STATE.GAMEOVER);
+  }
 
   // ---- Main loop ---------------------------------------------------------
   let last = performance.now();
