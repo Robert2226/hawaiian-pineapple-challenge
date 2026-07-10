@@ -1057,6 +1057,7 @@
     get hazards() { return hazards.length; },
     get challenge() { return challenge; },
     parseChallenge(search) { return parseChallengeFrom(search); }, // debug/testing aid
+    challengeMessage() { return challengeMessage(); },              // debug/testing aid
     get muted() { return muted; },
     toggleMute() { toggleMute(); },
     clearBest() { best = 0; localStorage.removeItem("hpc_best"); },
@@ -1109,25 +1110,29 @@
     toastTimer = setTimeout(() => toastEl.classList.add("hidden"), 2000);
   }
 
+  // Friends are challenged to beat the all-time best (the bragging number).
   function buildChallengeURL() {
     const nm = playerName || "Player";
     return location.origin + location.pathname +
-      "?n=" + encodeURIComponent(nm) + "&s=" + score;
+      "?n=" + encodeURIComponent(nm) + "&s=" + best;
   }
 
+  function challengeMessage() {
+    return (playerName || "Player") + " scored " + score +
+      " and has an all-time high score of " + best +
+      " — can you beat it? 🍍\n" + buildChallengeURL();
+  }
+
+  // Copy the full message (+link) so it sends intact on any device/app.
   function shareChallenge() {
-    const url = buildChallengeURL();
-    const text = (playerName || "Player") + " scored " + score +
-      " in Hawaiian Pineapple Challenge — can you beat it? 🍍";
-    if (navigator.share) {
-      navigator.share({ title: "Hawaiian Pineapple Challenge", text, url }).catch(() => {});
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(
-        () => showToast("Challenge link copied! 🌴"),
-        () => showToast(url)
+    const msg = challengeMessage();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(msg).then(
+        () => showToast("Message copied — paste it into a text! 🌴"),
+        () => showToast(msg)
       );
     } else {
-      showToast(url);
+      showToast(msg);
     }
   }
   if (challengeBtn) challengeBtn.addEventListener("click", shareChallenge);
