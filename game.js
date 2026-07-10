@@ -1040,36 +1040,6 @@
     syncUI();
   }
 
-  // ---- Debug hook (harmless; handy for testing) --------------------------
-  window.HPC = {
-    get state() { return state; },
-    get score() { return score; },
-    get lives() { return lives; },
-    get pineapples() { return pineapples.length; },
-    get coconuts() { return coconuts.length; },
-    get best() { return best; },
-    get name() { return playerName; },
-    get combo() { return combo; },
-    get mult() { return comboMult(); },
-    get wave() { return wave; },
-    get toSpawn() { return toSpawn; },
-    get betweenWaves() { return betweenWaves; },
-    get hazards() { return hazards.length; },
-    get challenge() { return challenge; },
-    parseChallenge(search) { return parseChallengeFrom(search); }, // debug/testing aid
-    challengeMessage() { return challengeMessage(); },              // debug/testing aid
-    get muted() { return muted; },
-    toggleMute() { toggleMute(); },
-    clearBest() { best = 0; localStorage.removeItem("hpc_best"); },
-    setCombo(n) { combo = n; },   // debug/testing aid
-    setLives(n) { lives = n; },   // debug/testing aid
-    setScore(n) { score = n; },   // debug/testing aid
-    setToSpawn(n) { toSpawn = n; }, // debug/testing aid
-    spawnHazardAt(x, y) { spawnHazard(x, y); }, // debug/testing aid
-    fire() { fireTimer = 0; fire(); },          // debug/testing aid
-    forceStart() { state = STATE.PLAYING; reset(); },
-  };
-
   // ---- Name prompt (DOM modal, shown once) -------------------------------
   const nameModal = document.getElementById("name-modal");
   const nameInput = document.getElementById("name-input");
