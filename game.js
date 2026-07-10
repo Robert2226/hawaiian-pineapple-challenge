@@ -35,6 +35,7 @@
 
   let pineapples = [];
   let coconuts = [];
+  let hazards = [];     // protected natives — do NOT shoot these
   let particles = [];
   let score = 0;
   let lives = START_LIVES;
@@ -148,6 +149,7 @@
     shoot() { tone(430, 0.12, "square", 0.10, 190); },
     hit() { noiseBurst(0.18, 0.28); tone(680, 0.12, "triangle", 0.10, 990); },
     miss() { tone(300, 0.4, "sawtooth", 0.18, 90); },
+    penalty() { tone(200, 0.35, "sawtooth", 0.18, 90); setTimeout(() => tone(150, 0.3, "square", 0.14, 80), 120); },
     start() { tone(523, 0.1, "sine", 0.14); setTimeout(() => tone(784, 0.16, "sine", 0.14), 110); },
     over() { tone(392, 0.25, "sine", 0.16, 180); setTimeout(() => tone(262, 0.4, "sine", 0.16, 120), 180); },
     wave() {
@@ -167,6 +169,7 @@
   function reset() {
     pineapples = [];
     coconuts = [];
+    hazards = [];
     particles = [];
     score = 0;
     lives = START_LIVES;
@@ -217,6 +220,30 @@
       spin: rand(-2, 2),
       angle: 0,
     });
+  }
+
+  // Protected Hawaiian natives — shooting one costs points + breaks combo.
+  const HAZARD_EMOJI = ["🐢", "🦆", "🦭", "🌺"]; // honu, nēnē, monk seal, hibiscus
+  const hazardChance = (w) => Math.min(0.35, 0.12 + w * 0.02);
+
+  function spawnHazard(x, y) {
+    const fm = waveFallMul(wave);
+    hazards.push({
+      x: x != null ? x : PALMS[Math.floor(Math.random() * PALMS.length)] + rand(-18, 18),
+      y: y != null ? y : 70,
+      vx: rand(-30, 30),
+      vy: rand(20, 55) * fm,
+      r: 22,
+      emoji: HAZARD_EMOJI[Math.floor(Math.random() * HAZARD_EMOJI.length)],
+      angle: 0,
+      spin: rand(-1.2, 1.2),
+    });
+  }
+
+  // A wave "drop" is usually a pineapple, sometimes a protected native.
+  function spawnDrop() {
+    if (Math.random() < hazardChance(wave)) spawnHazard();
+    else spawnPineapple();
   }
 
   function fire() {
@@ -349,11 +376,11 @@
       spawnTimer -= dt;
       if (spawnTimer <= 0) {
         spawnTimer = waveInterval(wave);
-        spawnPineapple();
+        spawnDrop();
         toSpawn--;
       }
-    } else if (pineapples.length === 0) {
-      // wave cleared
+    } else if (pineapples.length === 0 && hazards.length === 0) {
+      // wave cleared (wait for lingering natives to fall away too)
       betweenWaves = true;
       breatherTimer = 2.0;
     }
@@ -367,6 +394,16 @@
       // bounce off side walls a little
       if (p.x < p.r) { p.x = p.r; p.vx *= -0.6; }
       if (p.x > W - p.r) { p.x = W - p.r; p.vx *= -0.6; }
+    }
+
+    // Hazards (protected natives) fall the same way
+    for (const hz of hazards) {
+      hz.vy += GRAVITY * dt;
+      hz.x += hz.vx * dt;
+      hz.y += hz.vy * dt;
+      hz.angle += hz.spin * dt;
+      if (hz.x < hz.r) { hz.x = hz.r; hz.vx *= -0.6; }
+      if (hz.x > W - hz.r) { hz.x = W - hz.r; hz.vx *= -0.6; }
     }
 
     // Coconuts fly
@@ -399,6 +436,32 @@
       }
     }
 
+    // Collisions: coconut vs hazard -> PENALTY (you shot a protected native)
+    for (const hz of hazards) {
+      if (hz.dead) continue;
+      for (const c of coconuts) {
+        if (c.dead) continue;
+        const dx = hz.x - c.x;
+        const dy = hz.y - c.y;
+        const rr = hz.r + c.r;
+        if (dx * dx + dy * dy <= rr * rr) {
+          hz.dead = true;
+          c.dead = true;
+          score = Math.max(0, score - 15);
+          combo = 0; // shooting a native breaks the streak
+          burst(hz.x, hz.y, "#c0392b");
+          addShake(6);
+          sfx.penalty();
+          break;
+        }
+      }
+    }
+
+    // Hazard reaches the ground safely -> no penalty, just despawn
+    for (const hz of hazards) {
+      if (!hz.dead && hz.y + hz.r >= GROUND_Y) hz.dead = true;
+    }
+
     // Pineapple hits ground -> lose life
     for (const p of pineapples) {
       if (!p.dead && p.y + p.r >= GROUND_Y) {
@@ -419,6 +482,7 @@
 
     pineapples = pineapples.filter((p) => !p.dead);
     coconuts = coconuts.filter((c) => !c.dead);
+    hazards = hazards.filter((hz) => !hz.dead);
 
     // Particles
     for (const pt of particles) {
@@ -754,6 +818,22 @@
     ctx.fillRect(bx - 9, by + 26, 18, 3);         // teeth
   }
 
+  function drawHazard(hz) {
+    ctx.save();
+    ctx.translate(hz.x, hz.y);
+    ctx.rotate(Math.sin(hz.angle) * 0.25); // gentle wobble, still recognizable
+    // white halo so it reads as "protected / don't shoot"
+    ctx.beginPath();
+    ctx.arc(0, 0, hz.r + 3, 0, TAU);
+    ctx.fillStyle = "rgba(255,255,255,0.28)";
+    ctx.fill();
+    ctx.font = hz.r * 2 + "px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(hz.emoji, 0, 2);
+    ctx.restore();
+  }
+
   function drawCoconut(c) {
     const g = ctx.createRadialGradient(c.x - 3, c.y - 3, 1, c.x, c.y, c.r);
     g.addColorStop(0, "#7a4a1e");
@@ -911,6 +991,7 @@
     drawTorch(W - 48);
 
     for (const p of pineapples) drawPineapple(p);
+    for (const hz of hazards) drawHazard(hz);
     for (const c of coconuts) drawCoconut(c);
     drawParticles();
     if (state === STATE.PLAYING) drawAimGuide();
@@ -949,11 +1030,14 @@
     get wave() { return wave; },
     get toSpawn() { return toSpawn; },
     get betweenWaves() { return betweenWaves; },
+    get hazards() { return hazards.length; },
     get muted() { return muted; },
     toggleMute() { toggleMute(); },
     clearBest() { best = 0; localStorage.removeItem("hpc_best"); },
     setCombo(n) { combo = n; },   // debug/testing aid
     setLives(n) { lives = n; },   // debug/testing aid
+    spawnHazardAt(x, y) { spawnHazard(x, y); }, // debug/testing aid
+    fire() { fireTimer = 0; fire(); },          // debug/testing aid
     forceStart() { state = STATE.PLAYING; reset(); },
   };
 
