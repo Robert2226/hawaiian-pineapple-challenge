@@ -39,8 +39,16 @@
   let particles = [];
   let score = 0;
   let lives = START_LIVES;
+  let best = parseInt(localStorage.getItem("hpc_best"), 10) || 0;
   let spawnTimer = 0;
   let fireTimer = 0;
+
+  function saveBestIfNeeded() {
+    if (score > best) {
+      best = score;
+      localStorage.setItem("hpc_best", String(best));
+    }
+  }
 
   // Cannon lives at bottom-center; barrel eases toward targetAim.
   const cannon = { x: W / 2, y: GROUND_Y, aim: -Math.PI / 2, targetAim: -Math.PI / 2, barrel: 46 };
@@ -132,8 +140,8 @@
     over() { tone(392, 0.25, "sine", 0.16, 180); setTimeout(() => tone(262, 0.4, "sine", 0.16, 120), 180); },
   };
 
-  // On-canvas mute button (game-space rect).
-  const muteRect = { x: 174, y: 12, w: 42, h: 38 };
+  // On-canvas mute button (game-space rect), top-right corner.
+  const muteRect = { x: W - 54, y: 12, w: 42, h: 38 };
   function toggleMute() {
     muted = !muted;
     localStorage.setItem("hpc_muted", muted ? "1" : "0");
@@ -362,6 +370,7 @@
         if (lives <= 0) {
           lives = 0;
           state = STATE.GAMEOVER;
+          saveBestIfNeeded();
           sfx.over();
         }
       }
@@ -757,34 +766,41 @@
     ctx.globalAlpha = 1;
   }
 
-  function drawHUD() {
-    // score plaque (top-left)
+  // Small helper: a tropical HUD plaque with left-aligned label text.
+  function drawPlaque(x, w, label) {
     ctx.fillStyle = "rgba(61,38,15,0.4)";
-    roundRectPath(12, 12, 150, 38, 10);
+    roundRectPath(x, 12, w, 38, 10);
     ctx.fill();
     ctx.fillStyle = "#fff8e6";
     ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText("🍍 " + score, 26, 32);
+    ctx.fillText(label, x + 14, 32);
+  }
 
-    // mute button (just right of the score plaque)
+  function drawHUD() {
+    // score (top-left) + best score beside it
+    drawPlaque(12, 150, "🍍 " + score);
+    drawPlaque(172, 160, "🏆 " + best);
+
+    // mute button (top-right corner)
     ctx.fillStyle = "rgba(61,38,15,0.4)";
     roundRectPath(muteRect.x, muteRect.y, muteRect.w, muteRect.h, 10);
     ctx.fill();
+    ctx.fillStyle = "#fff8e6";
     ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     ctx.font = "20px 'Trebuchet MS', sans-serif";
     ctx.fillText(muted ? "🔇" : "🔊", muteRect.x + muteRect.w / 2, muteRect.y + muteRect.h / 2 + 1);
-    ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
 
-    // lives (top-right)
+    // lives (top-right, just left of the mute button)
+    ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
     ctx.textAlign = "right";
-    ctx.fillStyle = "#fff8e6";
-    ctx.fillText("❤️".repeat(lives), W - 18, 32);
+    ctx.fillText("❤️".repeat(lives), muteRect.x - 12, 31);
     ctx.textBaseline = "alphabetic";
   }
 
-  function drawCenterText(title, subtitle) {
+  function drawCenterText(title, subtitle, footer) {
     ctx.fillStyle = "rgba(10,30,45,0.5)";
     ctx.fillRect(0, 0, W, H);
     ctx.textAlign = "center";
@@ -798,6 +814,11 @@
     ctx.font = "20px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "#ffe9b0";
     ctx.fillText(subtitle, W / 2, H / 2 + 22);
+    if (footer) {
+      ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
+      ctx.fillStyle = "#ffd93b";
+      ctx.fillText(footer, W / 2, H / 2 + 58);
+    }
     ctx.textBaseline = "alphabetic";
   }
 
@@ -825,9 +846,17 @@
 
     drawHUD();
     if (state === STATE.START) {
-      drawCenterText("🍍 Hawaiian Pineapple Challenge 🌴", "Click / tap to start");
+      drawCenterText(
+        "🍍 Hawaiian Pineapple Challenge 🌴",
+        "Click / tap to start",
+        best > 0 ? "🏆 Best: " + best : ""
+      );
     } else if (state === STATE.GAMEOVER) {
-      drawCenterText("Game Over — Score " + score, "Click / tap to play again");
+      drawCenterText(
+        "Game Over — Score " + score,
+        "Click / tap to play again",
+        "🏆 Best: " + best
+      );
     }
   }
 
@@ -838,8 +867,10 @@
     get lives() { return lives; },
     get pineapples() { return pineapples.length; },
     get coconuts() { return coconuts.length; },
+    get best() { return best; },
     get muted() { return muted; },
     toggleMute() { toggleMute(); },
+    clearBest() { best = 0; localStorage.removeItem("hpc_best"); },
     forceStart() { state = STATE.PLAYING; reset(); },
   };
 
