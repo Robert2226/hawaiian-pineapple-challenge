@@ -8,5 +8,9 @@
 .vscode/
 .idea/
 
+# Claude Code personal/local config (keep private, not shared)
+.claude/settings.local.json
+.claude/CLAUDE.md
+
 # Logs
 *.log
