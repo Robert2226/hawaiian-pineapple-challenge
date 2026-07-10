@@ -18,7 +18,6 @@
 
   // ---- Game constants ----------------------------------------------------
   const GRAVITY = 260;          // px/s^2, pineapple downward accel
-  const SPAWN_INTERVAL = 1.4;   // seconds between spawns (Phase 3 will ramp)
   const PINEAPPLE_R = 22;
   const COCONUT_R = 8;
   const COCONUT_SPEED = 620;    // px/s
@@ -43,6 +42,16 @@
   let playerName = (localStorage.getItem("hpc_name") || "").trim();
   let combo = 0;
   const comboMult = () => 1 + Math.floor(combo / 3); // x2 at 3 hits, x3 at 6, ...
+
+  // Waves: each wave spawns a fixed batch, then a short breather + banner.
+  let wave = 1;
+  let toSpawn = 0;         // drops remaining to spawn this wave
+  let betweenWaves = false;
+  let breatherTimer = 0;
+  const waveSize = (w) => 4 + w * 2;
+  const waveInterval = (w) => Math.max(0.5, 1.4 - w * 0.12);
+  const waveFallMul = (w) => 1 + (w - 1) * 0.12;
+
   let spawnTimer = 0;
   let fireTimer = 0;
 
@@ -141,6 +150,11 @@
     miss() { tone(300, 0.4, "sawtooth", 0.18, 90); },
     start() { tone(523, 0.1, "sine", 0.14); setTimeout(() => tone(784, 0.16, "sine", 0.14), 110); },
     over() { tone(392, 0.25, "sine", 0.16, 180); setTimeout(() => tone(262, 0.4, "sine", 0.16, 120), 180); },
+    wave() {
+      tone(523, 0.12, "sine", 0.14);
+      setTimeout(() => tone(784, 0.14, "sine", 0.14), 120);
+      setTimeout(() => tone(1047, 0.2, "sine", 0.14), 250);
+    },
   };
 
   // On-canvas mute button (game-space rect), top-right corner.
@@ -157,7 +171,11 @@
     score = 0;
     lives = START_LIVES;
     combo = 0;
-    spawnTimer = 0;
+    wave = 1;
+    toSpawn = waveSize(1);
+    betweenWaves = false;
+    breatherTimer = 0;
+    spawnTimer = 0.6; // brief lead-in before the first drop
     fireTimer = 0;
     firing = false;
     cannon.aim = -Math.PI / 2;
@@ -189,11 +207,12 @@
   // ---- Spawning ----------------------------------------------------------
   function spawnPineapple() {
     const x = PALMS[Math.floor(Math.random() * PALMS.length)] + rand(-18, 18);
+    const fm = waveFallMul(wave);
     pineapples.push({
       x,
       y: 70,
       vx: rand(-30, 30),
-      vy: rand(20, 60),
+      vy: rand(20, 60) * fm,
       r: PINEAPPLE_R,
       spin: rand(-2, 2),
       angle: 0,
@@ -316,11 +335,27 @@
     // Auto-fire while the trigger is held.
     if (firing) fire();
 
-    // Spawn
-    spawnTimer -= dt;
-    if (spawnTimer <= 0) {
-      spawnTimer = SPAWN_INTERVAL;
-      spawnPineapple();
+    // Waves: spawn the batch, then breather + banner, then next wave.
+    if (betweenWaves) {
+      breatherTimer -= dt;
+      if (breatherTimer <= 0) {
+        wave++;
+        toSpawn = waveSize(wave);
+        betweenWaves = false;
+        spawnTimer = 0.5;
+        sfx.wave();
+      }
+    } else if (toSpawn > 0) {
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        spawnTimer = waveInterval(wave);
+        spawnPineapple();
+        toSpawn--;
+      }
+    } else if (pineapples.length === 0) {
+      // wave cleared
+      betweenWaves = true;
+      breatherTimer = 2.0;
     }
 
     // Pineapples fall
@@ -789,6 +824,9 @@
     drawPlaque(12, 150, "🍍 " + score);
     drawPlaque(172, 160, "🏆 " + best);
 
+    // wave readout (top-center)
+    if (state === STATE.PLAYING) drawPlaque(W / 2 - 65, 130, "🌊 Wave " + wave);
+
     // mute button (top-right corner)
     ctx.fillStyle = "rgba(61,38,15,0.4)";
     roundRectPath(muteRect.x, muteRect.y, muteRect.w, muteRect.h, 10);
@@ -816,6 +854,23 @@
       ctx.strokeText(txt, W / 2, 64);
       ctx.fillText(txt, W / 2, 64);
     }
+    ctx.textBaseline = "alphabetic";
+  }
+
+  function drawWaveBanner() {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 46px 'Trebuchet MS', sans-serif";
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    const main = "🌊 Wave " + wave + " cleared!";
+    const sub = "Get ready for Wave " + (wave + 1) + "…";
+    ctx.strokeText(main, W / 2, H / 2 - 10);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(main, W / 2, H / 2 - 10);
+    ctx.font = "22px 'Trebuchet MS', sans-serif";
+    ctx.fillStyle = "#ffe9b0";
+    ctx.fillText(sub, W / 2, H / 2 + 34);
     ctx.textBaseline = "alphabetic";
   }
 
@@ -864,6 +919,7 @@
     ctx.restore();
 
     drawHUD();
+    if (state === STATE.PLAYING && betweenWaves) drawWaveBanner();
     if (state === STATE.START) {
       drawCenterText(
         "🍍 Hawaiian Pineapple Challenge 🌴",
@@ -890,10 +946,14 @@
     get name() { return playerName; },
     get combo() { return combo; },
     get mult() { return comboMult(); },
+    get wave() { return wave; },
+    get toSpawn() { return toSpawn; },
+    get betweenWaves() { return betweenWaves; },
     get muted() { return muted; },
     toggleMute() { toggleMute(); },
     clearBest() { best = 0; localStorage.removeItem("hpc_best"); },
-    setCombo(n) { combo = n; }, // debug/testing aid
+    setCombo(n) { combo = n; },   // debug/testing aid
+    setLives(n) { lives = n; },   // debug/testing aid
     forceStart() { state = STATE.PLAYING; reset(); },
   };
 
