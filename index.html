@@ -10,6 +10,18 @@
   <div id="game-wrap">
     <canvas id="game" width="800" height="600"></canvas>
   </div>
+
+  <!-- Name prompt (shown once, when no saved name) -->
+  <div id="name-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>🍍 Aloha! 🌴</h2>
+      <p>What should we call you?</p>
+      <input id="name-input" type="text" maxlength="12" placeholder="Your name"
+             autocomplete="off" autocorrect="off" spellcheck="false" />
+      <button id="name-go">Let's go! 🏝️</button>
+    </div>
+  </div>
+
   <script src="game.js"></script>
 </body>
 </html>

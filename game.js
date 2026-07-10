@@ -40,6 +40,7 @@
   let score = 0;
   let lives = START_LIVES;
   let best = parseInt(localStorage.getItem("hpc_best"), 10) || 0;
+  let playerName = (localStorage.getItem("hpc_name") || "").trim();
   let spawnTimer = 0;
   let fireTimer = 0;
 
@@ -848,7 +849,7 @@
     if (state === STATE.START) {
       drawCenterText(
         "🍍 Hawaiian Pineapple Challenge 🌴",
-        "Click / tap to start",
+        playerName ? "Aloha, " + playerName + "! Click / tap to start" : "Click / tap to start",
         best > 0 ? "🏆 Best: " + best : ""
       );
     } else if (state === STATE.GAMEOVER) {
@@ -868,11 +869,38 @@
     get pineapples() { return pineapples.length; },
     get coconuts() { return coconuts.length; },
     get best() { return best; },
+    get name() { return playerName; },
     get muted() { return muted; },
     toggleMute() { toggleMute(); },
     clearBest() { best = 0; localStorage.removeItem("hpc_best"); },
     forceStart() { state = STATE.PLAYING; reset(); },
   };
+
+  // ---- Name prompt (DOM modal, shown once) -------------------------------
+  const nameModal = document.getElementById("name-modal");
+  const nameInput = document.getElementById("name-input");
+  const nameGo = document.getElementById("name-go");
+
+  function showNameModal() {
+    if (!nameModal) return;
+    nameModal.classList.remove("hidden");
+    if (nameInput) { nameInput.value = ""; nameInput.focus(); }
+  }
+  function submitName() {
+    const v = (nameInput ? nameInput.value : "").trim().slice(0, 12);
+    playerName = v || "Player";
+    localStorage.setItem("hpc_name", playerName);
+    if (nameModal) nameModal.classList.add("hidden");
+    ensureAudio(); // this click is a user gesture — unlock audio early
+  }
+  if (nameGo) nameGo.addEventListener("click", submitName);
+  if (nameInput) {
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.code === "Enter" || e.key === "Enter") submitName();
+    });
+  }
+  // Ask for a name on first visit only.
+  if (!playerName) showNameModal();
 
   // ---- Main loop ---------------------------------------------------------
   let last = performance.now();

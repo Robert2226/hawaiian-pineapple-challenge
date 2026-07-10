@@ -45,3 +45,77 @@ body {
   border-radius: 6px;
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
 }
+
+/* ---- Modals / overlay UI ------------------------------------------------ */
+.hidden {
+  display: none !important;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 30, 45, 0.55);
+  z-index: 10;
+  padding: 1rem;
+}
+
+.modal-card {
+  background: linear-gradient(160deg, #ffb27f 0%, #ff8c69 100%);
+  color: #3a2410;
+  border: 3px solid #6b4423;
+  border-radius: 16px;
+  padding: 1.6rem 1.8rem;
+  width: min(90vw, 340px);
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.modal-card h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.modal-card p {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.modal-card input {
+  width: 100%;
+  font: inherit;
+  font-size: 1.1rem;
+  text-align: center;
+  padding: 0.6rem 0.8rem;
+  border: 2px solid #6b4423;
+  border-radius: 10px;
+  background: #fff8e6;
+  color: #3a2410;
+  margin-bottom: 1rem;
+}
+
+.modal-card input:focus {
+  outline: none;
+  border-color: #2e8b57;
+}
+
+.modal-card button {
+  font: inherit;
+  font-weight: bold;
+  font-size: 1.05rem;
+  cursor: pointer;
+  padding: 0.6rem 1.4rem;
+  border: none;
+  border-radius: 10px;
+  background: #2e8b57;
+  color: #fff8e6;
+  box-shadow: 0 4px 0 #1f6b40;
+  transition: transform 0.05s ease;
+}
+
+.modal-card button:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #1f6b40;
+}
