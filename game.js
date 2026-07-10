@@ -41,6 +41,8 @@
   let lives = START_LIVES;
   let best = parseInt(localStorage.getItem("hpc_best"), 10) || 0;
   let playerName = (localStorage.getItem("hpc_name") || "").trim();
+  let combo = 0;
+  const comboMult = () => 1 + Math.floor(combo / 3); // x2 at 3 hits, x3 at 6, ...
   let spawnTimer = 0;
   let fireTimer = 0;
 
@@ -154,6 +156,7 @@
     particles = [];
     score = 0;
     lives = START_LIVES;
+    combo = 0;
     spawnTimer = 0;
     fireTimer = 0;
     firing = false;
@@ -351,7 +354,8 @@
         if (dx * dx + dy * dy <= rr * rr) {
           p.dead = true;
           c.dead = true;
-          score += 10;
+          combo++;
+          score += 10 * comboMult();
           burst(p.x, p.y, "#ffd93b");
           addShake(3);
           sfx.hit();
@@ -365,6 +369,7 @@
       if (!p.dead && p.y + p.r >= GROUND_Y) {
         p.dead = true;
         lives -= 1;
+        combo = 0; // a miss breaks the streak
         burst(p.x, GROUND_Y, "#c0392b");
         addShake(11);
         sfx.miss();
@@ -798,6 +803,19 @@
     ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
     ctx.textAlign = "right";
     ctx.fillText("❤️".repeat(lives), muteRect.x - 12, 31);
+
+    // combo readout (top-center, only once the multiplier kicks in)
+    if (state === STATE.PLAYING && comboMult() > 1) {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "bold 26px 'Trebuchet MS', sans-serif";
+      ctx.fillStyle = "#ff6a00";
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 4;
+      const txt = "🔥 x" + comboMult() + " (" + combo + " combo)";
+      ctx.strokeText(txt, W / 2, 64);
+      ctx.fillText(txt, W / 2, 64);
+    }
     ctx.textBaseline = "alphabetic";
   }
 
@@ -870,9 +888,12 @@
     get coconuts() { return coconuts.length; },
     get best() { return best; },
     get name() { return playerName; },
+    get combo() { return combo; },
+    get mult() { return comboMult(); },
     get muted() { return muted; },
     toggleMute() { toggleMute(); },
     clearBest() { best = 0; localStorage.removeItem("hpc_best"); },
+    setCombo(n) { combo = n; }, // debug/testing aid
     forceStart() { state = STATE.PLAYING; reset(); },
   };
 
